@@ -18,8 +18,9 @@ import java.net.http.HttpResponse;
 public class SpeechToTextService {
 
     public Map<String, Object> transcribe(File file) throws Exception {
-        // ✅ 第一次執行時設置金鑰路徑（Render 中會掛載成 /app/speech-key.json）
-        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", "/app/speech-key.json");
+        // ✅ 修正 Secret File 的路徑（Render 掛載點）
+        String credentialPath = "/etc/secrets/speech-key.json";
+        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialPath);
 
         ByteString audioBytes = ByteString.readFrom(new FileInputStream(file));
 
@@ -62,7 +63,12 @@ public class SpeechToTextService {
     }
 
     private String callOpenRouter(String prompt) throws Exception {
-        String apiKey = "sk-or-v1-你的-openrouter-api金鑰"; // 如需保密也可以改成讀環境變數
+        // ✅ 使用 Render 上的環境變數
+        String apiKey = System.getenv("OPENROUTER_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("❌ OPENROUTER_API_KEY 環境變數未設定");
+        }
+
         String apiUrl = "https://openrouter.ai/api/v1/chat/completions";
 
         String body = """
@@ -87,6 +93,10 @@ public class SpeechToTextService {
         HttpClient client = HttpClient.newHttpClient();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
+        if (response.statusCode() != 200) {
+            throw new RuntimeException("❌ OpenRouter 回應錯誤：" + response.statusCode() + " - " + response.body());
+        }
+
         ObjectMapper mapper = new ObjectMapper();
         Map<?, ?> json = mapper.readValue(response.body(), Map.class);
         Map<?, ?> choice = (Map<?, ?>) ((List<?>) json.get("choices")).get(0);
@@ -98,6 +108,6 @@ public class SpeechToTextService {
         Pattern pattern = Pattern.compile("\\{[^}]+\\}");
         Matcher matcher = pattern.matcher(text);
         if (matcher.find()) return matcher.group();
-        throw new RuntimeException("AI 回傳格式錯誤：" + text);
+        throw new RuntimeException("❌ AI 回傳格式錯誤：" + text);
     }
 }
