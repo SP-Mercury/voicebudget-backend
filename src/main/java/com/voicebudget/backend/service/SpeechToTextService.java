@@ -3,24 +3,26 @@ package com.voicebudget.backend.service;
 import com.google.cloud.speech.v1.*;
 import com.google.protobuf.ByteString;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.*;
-import java.util.regex.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.*;
+import java.util.regex.*;
 
 @Service
 public class SpeechToTextService {
 
+    @Value("${OPENROUTER_API_KEY:}")
+    private String openrouterApiKey;
+
     public Map<String, Object> transcribe(File file) throws Exception {
-        // ✅ 修正 Secret File 的路徑（Render 掛載點）
-        String credentialPath = "/etc/secrets/speech-key.json";
-        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialPath);
+        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", "/etc/secrets/speech-key.json");
 
         ByteString audioBytes = ByteString.readFrom(new FileInputStream(file));
 
@@ -63,10 +65,8 @@ public class SpeechToTextService {
     }
 
     private String callOpenRouter(String prompt) throws Exception {
-        // ✅ 使用 Render 上的環境變數
-        String apiKey = System.getenv("OPENROUTER_API_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalStateException("❌ OPENROUTER_API_KEY 環境變數未設定");
+        if (openrouterApiKey == null || openrouterApiKey.isBlank()) {
+            throw new IllegalStateException("❌ OPENROUTER_API_KEY 環境變數未設定或為空");
         }
 
         String apiUrl = "https://openrouter.ai/api/v1/chat/completions";
@@ -85,7 +85,7 @@ public class SpeechToTextService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(apiUrl))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + openrouterApiKey)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
