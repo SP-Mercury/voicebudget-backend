@@ -2,8 +2,8 @@ package com.voicebudget.backend.service;
 
 import com.google.cloud.speech.v1.*;
 import com.google.protobuf.ByteString;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -18,11 +18,13 @@ import java.util.regex.*;
 @Service
 public class SpeechToTextService {
 
-    @Value("${OPENROUTER_API_KEY:}")
-    private String openrouterApiKey;
+    // ✅ OpenRouter 金鑰（請勿公開到 GitHub）
+    private static final String OPENROUTER_API_KEY = "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";
 
     public Map<String, Object> transcribe(File file) throws Exception {
-        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", "/etc/secrets/speech-key.json");
+        // ✅ Google 語音辨識金鑰檔案路徑
+        System.setProperty("GOOGLE_APPLICATION_CREDENTIALS",
+                "C:\\Users\\yang wen\\Desktop\\voicebudget-backend\\speech-key.json");
 
         ByteString audioBytes = ByteString.readFrom(new FileInputStream(file));
 
@@ -46,27 +48,27 @@ public class SpeechToTextService {
         }
 
         String prompt = String.format(
-            "你是一位財務記帳助手，請從下列中文語音內容中分析出：\n" +
-            "- category：消費分類，必須為「飲食」「交通」「娛樂」「購物」「其他」五選一\n" +
-            "- amount：消費金額，為新台幣整數（請不要加上單位）\n" +
-            "- type：收入 或 支出\n\n" +
-            "請僅輸出以下格式的 JSON（不得多出任何說明或註解）：\n" +
-            "{\"category\": \"分類名稱\", \"amount\": 消費金額整數, \"type\": \"收入或支出\"}\n\n" +
-            "語音內容如下：\"%s\"", transcript
+                "你是一位財務記帳助手，請從下列中文語音內容中分析出：\n" +
+                        "- category：消費分類，必須為「飲食」「交通」「娛樂」「購物」「其他」五選一\n" +
+                        "- amount：消費金額，為新台幣整數（請不要加上單位）\n" +
+                        "- type：收入 或 支出\n\n" +
+                        "請僅輸出以下格式的 JSON（不得多出任何說明或註解）：\n" +
+                        "{\"category\": \"分類名稱\", \"amount\": 消費金額整數, \"type\": \"收入或支出\"}\n\n" +
+                        "語音內容如下：\"%s\"", transcript
         );
 
         String aiReply = callOpenRouter(prompt);
         String jsonText = extractJsonFromText(aiReply);
 
         ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> result = mapper.readValue(jsonText, Map.class);
+        Map<String, Object> result = mapper.readValue(jsonText, new TypeReference<Map<String, Object>>() {});
         result.put("description", transcript);
         return result;
     }
 
     private String callOpenRouter(String prompt) throws Exception {
-        if (openrouterApiKey == null || openrouterApiKey.isBlank()) {
-            throw new IllegalStateException("❌ OPENROUTER_API_KEY 環境變數未設定或為空");
+        if (OPENROUTER_API_KEY == null || OPENROUTER_API_KEY.isBlank()) {
+            throw new IllegalStateException("❌ OPENROUTER_API_KEY 未設定");
         }
 
         String apiUrl = "https://openrouter.ai/api/v1/chat/completions";
@@ -85,7 +87,7 @@ public class SpeechToTextService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(apiUrl))
-                .header("Authorization", "Bearer " + openrouterApiKey)
+                .header("Authorization", "Bearer " + OPENROUTER_API_KEY)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
